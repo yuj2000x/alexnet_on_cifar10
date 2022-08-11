@@ -21,22 +21,24 @@ writer = SummaryWriter('./Result/ex-gpu-1')
 
 # 定義參數
 batch_size = 512
-learning_rate = 1e-2
+learning_rate = 1e-1
 momentum = 0.9
 epoch = 25
 
 # 資料處理
 transform_train = transforms.Compose([
-    transforms.Resize(70),
-    transforms.RandomResizedCrop(64),
-    transforms.RandomHorizontalFlip(),
+    transforms.Resize((70, 70)),
+    transforms.RandomCrop((64, 64)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+
 ])
 transform_test = transforms.Compose([
-    transforms.Resize((64)),
+    transforms.Resize((70, 70)),
+    transforms.RandomCrop((64, 64)),
     transforms.ToTensor(),
-    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),  # ?
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+
 ])
 
 # 下載 CIFAR 10
@@ -87,7 +89,6 @@ class Net(nn.Module):
             nn.Linear(256*1*1, 4096),
             nn.ReLU(inplace=True),
             # FC_2
-            nn.Dropout(0.5),
             nn.Linear(4096, 4096),
             nn.ReLU(inplace=True),
             # FC_3
@@ -143,24 +144,28 @@ def test_loop(dataloader, model, loss_fn):
     correct /= size
     print(
         f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
-    return test_loss
+    return test_loss, 100*correct
 
 
 # 定義 loss function 和 optimizer
 loss_fn = nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(
     model.parameters(), lr=learning_rate, momentum=momentum)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    optimizer, factor=0.1, mode='max', verbose=True)
+
+
+def write(train_loss, test_loss, Acc, T):
+    writer.add_scalars('Training Loss : ', {
+        'Training': train_loss}, T)
+    writer.add_scalars('Testing Loss : ', {
+        'Testing': test_loss}, T)
+    writer.add_scalars('Accuracy : ', {
+        'Accuracy': Acc}, T)
 
 
 for t in range(epoch):
     print(f"Epoch {t+1}\n-------------------------------")
     train_loss = train_loop(trainloader, model, loss_fn, optimizer)
-    test_loss = test_loop(testloader, model, loss_fn)
+    test_loss, Acc = test_loop(testloader, model, loss_fn)
     T = t + 1
-    writer.add_scalars('Training Loss : ', {
-        'Training': train_loss}, T)
-    writer.add_scalars('Testing Loss : ', {
-        'Testing': test_loss}, T)
+    write(train_loss, test_loss, Acc, T)
 print("Done!")
